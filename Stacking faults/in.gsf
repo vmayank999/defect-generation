@@ -1,0 +1,103 @@
+variable        xbox equal 21
+variable        ybox equal 20
+variable        zbox equal 20
+variable        lat equal 3.556
+variable        dx equal sqrt(6)/2
+variable        dz equal sqrt(2)
+variable        dy equal sqrt(3)
+
+variable        partial equal "v_lat/sqrt(6)"
+variable        cna equal "v_lat*(1+1/sqrt(2))/2"
+
+variable xlength equal ${xbox}*${dx}*${lat}
+variable ylength equal ${ybox}*${dy}*${lat}
+variable zlength equal ${zbox}*${dz}*${lat}
+variable yhalf equal ${ylength}/2
+
+units 		metal
+dimension 	3 
+boundary 	p s p
+atom_style 	atomic
+
+# -------------- creating a upper & lower regions and as well as - region & simulation box ----------------------
+lattice fcc ${lat} orient x 1 1 -2 orient y 1 1 1 orient z 1 -1 0 spacing ${dx} ${dy} ${dz}
+region whole block 0.000000 ${xlength} 0.000000 ${ylength} 0.0 ${zlength} units box
+create_box 4 whole
+create_atoms 1 region whole
+
+region        top1 block INF INF 66 INF INF INF units box
+group         top1 region top1
+
+region        top block INF INF 64 INF INF INF units box
+group         top region top
+
+
+region        bot block INF INF 62 INF INF INF units box
+group         bot region bot
+
+
+region        energy block INF INF 45 80 INF INF units box
+group         energy region energy
+
+
+set 		type 1 type/fraction 2 0.25 324261
+set 		type 1 type/fraction 3 0.333 84326 
+set 		type 1 type/fraction 4 0.5 654320
+
+mass		1 55.8
+mass		2 58.7
+mass		3 52.0
+mass		4 59.0
+ 
+pair_style 	eam/alloy 
+pair_coeff 	* * hea.eam.alloy Fe Ni Cr Co
+
+compute         pe all pe/atom
+compute         cna all cna/atom ${cna}
+
+
+compute        genergy energy reduce sum c_pe
+variable       genergy equal  c_genergy
+
+
+thermo         1
+thermo_style   custom step pe ke etotal press temp lx ly lz pxx pyy pzz c_genergy
+
+dump           1 all custom 1 dump.cell.* id type xs ys zs c_cna c_pe
+dump           2 energy custom 1 dump.gsf.* id type xs ys zs c_cna c_pe
+
+run              0
+variable         genergy00 equal "v_genergy"
+variable         genergy0 equal ${genergy00}
+
+label            forloopp
+variable         a loop 20
+variable         p equal "v_partial/20"
+
+displace_atoms   bot move ${p} 0 0 units box
+variable         gsf equal "(v_genergy-v_genergy0)/lx/lz*16.02*1000"
+fix              extra all print 1 "$a ${gsf}" append data.gsf-HEA-0 screen no title a
+run              1
+next             a
+jump             in.gsf forloopp
+
+label            forloopt
+variable         a loop 21 40
+variable         p equal "v_partial/20"
+displace_atoms   top move ${p} 0 0 units box
+variable         gsf equal "(v_genergy-v_genergy0)/lx/lz*16.02*1000"
+fix              extra all print 1 "$a ${gsf}" append data.gsf-HEA-0 screen no title a 
+run              1
+next             a
+jump             in.gsf forloopt
+
+label            forloopz
+variable         a loop 41 60
+variable         p equal "v_partial/20"
+displace_atoms   top1 move ${p} 0 0 units box
+variable         gsf equal "(v_genergy-v_genergy0)/lx/lz*16.02*1000"
+fix              extra all print 1 "$a ${gsf}" append data.gsf-HEA-0 screen no title a 
+run              1
+next             a
+jump             in.gsf forloopz
+
